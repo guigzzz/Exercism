@@ -2,22 +2,65 @@ class Cell(object):
     def __init__(self, value = None, 
         dependencies = None, updater_callback = None):
 
+        self.following_cells = []
+        self.value = None
+
         if value is None: # Compute cell
-            if dependencies is None and \
+            if dependencies is None or \
                 updater_callback is None:
                 raise ValueError("Compute cell requires dependencies and callback function")
+            else:
+                self.register_updates(dependencies)
+                self.dependencies = dependencies
+                self.old_dep_values = [None] * len(self.dependencies)
+                self.updater_callback = updater_callback
+
+                self.watchers = set()
+                self.update()
 
         else: # input cell
             self.set_value(value)
+    
+
+    def register_updates(self, dependencies):
+        for d in dependencies:
+            d.add_following_cell(self)
+
+    def add_following_cell(self, compute_cell):
+        self.following_cells.append(compute_cell)
 
     def set_value(self, value):
         self.value = value
 
+        for cell in self.following_cells:
+            cell.update()
+
+    def update(self):
+        values = [c.value for c in self.dependencies]
+
+        if all([old != new for old, new in zip(self.old_dep_values, values)]):
+            self.old_dep_values = values
+            
+            new_value = self.updater_callback(values)
+            if new_value != self.value:
+                self.set_value(new_value)
+                self.call_watchers()
+        
+    def call_watchers(self):
+        for w in self.watchers:
+            w(self, self.value)
+
     def add_watcher(self, watcher_callback):
-        pass
+        self.watchers.add(watcher_callback)
 
     def remove_watcher(self, watcher_callback):
-        pass
+        self.watchers.discard(watcher_callback)
+
+    def __repr__(self):
+        if self.dependencies and self.updater_callback:
+            return 'Compute Cell: value = {}'.format(self.value)
+        else:
+            return 'Input Cell: value = {}'.format(self.value)
 
 
 class Reactor(object):
@@ -34,28 +77,5 @@ class Reactor(object):
             updater_callback = updater_callback
         )
 
-
-
-
-
-
-def increment(values):
-    return values[0] + 1
-
-def decrement(values):
-    return values[0] - 1
-
-def product(values):
-    return values[0] * values[1]
-
 if __name__ == '__main__':
-    reactor = Reactor()
-    inputCell1 = reactor.create_input_cell(1)
-    computeCell1 = reactor.create_compute_cell({inputCell1}, increment)
-    computeCell2 = reactor.create_compute_cell({inputCell1}, decrement)
-    computeCell3 = reactor.create_compute_cell({computeCell1,
-                                                computeCell2},
-                                                product)
-    assert computeCell3.value == 0
-    inputCell1.set_value(3)
-    assert computeCell3.value == 8
+    pass
